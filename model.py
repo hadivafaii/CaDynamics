@@ -32,7 +32,7 @@ class AutoEncoder(nn.Module):
             encoder_layers.extend([nn.Linear(encoder_units[i], encoder_units[i + 1]), nn.ReLU(inplace=True)])
         self.encoder = nn.Sequential(*encoder_layers[:-1])
 
-        decoder_units = nb_units[::-1] + [nb_cells]
+        decoder_units = encoder_units[::-1]
         decoder_layers = []
         for i in range(len(nb_units)):
             decoder_layers.extend([nn.Linear(decoder_units[i], decoder_units[i + 1]), nn.ReLU(inplace=True)])
@@ -52,7 +52,7 @@ class AutoEncoder(nn.Module):
         y = self.decoder(z)
         return z, y
 
-    def trn(self, data, batch_size=64, epoch=0):
+    def trn(self, data, batch_size=32, epoch=0):
         self.train()
 
         max_num_batches = int(np.ceil(len(data) / batch_size))
@@ -65,19 +65,21 @@ class AutoEncoder(nn.Module):
 
             x = data[range(start, end)]
             x = torch.from_numpy(x).float().cuda()
-            z, y = self(x)
+            _, y = self(x)
 
-            loss = self.criterion(y, x) / batch_size
+            loss = self.criterion(y, x) / (end - start)
 
             self.optim.zero_grad()
             loss.backward()
             self.optim.step()
 
-            msg = "epoch: {}, loss: {:.3f}".format(epoch, loss.item())
+            msg = "epoch: {}, loss: {:.3f}"
+            msg = msg.format(epoch, loss.item())
             pbar.set_description(msg)
             cuml_loss += loss.item()
             if (b + 1) == max_num_batches:
-                msg = "epoch # {}. avg loss: {:.4f}".format(epoch, cuml_loss / max_num_batches)
+                msg = "epoch # {}. avg loss: {:.4f}"
+                msg = msg.format(epoch, cuml_loss / max_num_batches)
                 pbar.set_description(msg)
 
         self.optim_schedule.step()
@@ -100,7 +102,8 @@ class AutoEncoder(nn.Module):
 
         plt.plot(r2_plus)
         msg = "epoch # {},   mean r2 = {:.2f} {:s},   tst loss = {:.4f}"
-        plt.title(msg.format(epoch, r2_plus.mean(), "%", loss.item()))
+        msg = msg.format(epoch, r2_plus.mean(), "%", loss.item())
+        plt.title(msg)
         plt.show()
 
         return r2, x_np, y_np, z_np
